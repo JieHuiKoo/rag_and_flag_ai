@@ -55,18 +55,21 @@ def get_country_content(query):
 
 # %%
 
-list_of_countries = get_list_of_countries("list_of_countries.txt")
-    
-# %% Fetch content for each country
-country_content = {}
-for country in list_of_countries:
-    print(f"Fetching content for {country}...")
-    content = get_country_content(country)
-    country_content[country] = content
+def generate_country_content():
+    list_of_countries = get_list_of_countries("list_of_countries.txt")
+        
+    # Fetch content for each country
+    country_content = {}
+    for country in list_of_countries:
+        print(f"Fetching content for {country}...")
+        content = get_country_content(country)
+        country_content[country] = content
 
-# %% The following countries have special cases
-country_content["Libyan Arab Jamahiriya"] = get_country_content("Libya")
-country_content["Macedonia"] = get_country_content("Macedonia (region)")
-country_content["Congo"] = get_country_content("Democratic Republic of the Congo")
-# %% Generate the dataframe
-country_content_df = pd.DataFrame(country_content.items(), columns=["Country", "Content"])
+    # The following countries have special cases
+    country_content["Libyan Arab Jamahiriya"] = get_country_content("Libya")
+    country_content["Macedonia"] = get_country_content("Macedonia (region)")
+    country_content["Congo"] = get_country_content("Democratic Republic of the Congo")
+    # Generate the dataframe
+    country_content_df = pd.DataFrame(country_content.items(), columns=["Country", "Content"])
+
+    return country_content_df
