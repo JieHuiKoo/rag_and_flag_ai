@@ -73,3 +73,10 @@ def generate_country_content():
     country_content_df = pd.DataFrame(country_content.items(), columns=["Country", "Content"])
 
     return country_content_df
+
+# %%
+content_df = generate_country_content()
+# %%
+# Save the content to a CSV file
+content_df.to_csv("country_content.csv", index=False)
+print("Content saved to country_content.csv")
