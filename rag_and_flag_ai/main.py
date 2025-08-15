@@ -9,6 +9,7 @@ import pandas as pd
 import chromadb
 from uuid import uuid4
 from chromadb.utils import embedding_functions
+from sentence_transformers import SentenceTransformer
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 import sys
 import time
@@ -35,9 +36,9 @@ class CountryRAGSystem:
     
     def __init__(self, csv_path="country_content.csv"):
         self.csv_path = csv_path
-        self.embed_model_name = "BAAI/bge-small-en-v1.5"
+        self.embed_model_name = "intfloat/e5-base-v2"
         self.llm_model_name = "google/flan-t5-large"
-        self.collection_name = "countries"
+        self.collection_name = "wikipedia"
         
         # Initialize components
         self.chroma_client = None
@@ -65,10 +66,9 @@ class CountryRAGSystem:
             sys.exit(1)
     
     def _setup_embeddings(self):
-        print("📊 Loading embedding model (BAAI/bge-small-en-v1.5)...")
+        print(f"📊 Loading embedding model {self.embed_model_name}...")
         try:
-            self.embed_model_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=self.embed_model_name
+            self.embed_model_fn = SentenceTransformer(self.embed_model_name
             )
             print("✅ Embedding model loaded successfully")
         except Exception as e:
@@ -88,34 +88,38 @@ class CountryRAGSystem:
         """Setup ChromaDB and load country data - following day03 notebook pattern"""
         print("🗄️  Setting up ChromaDB...")
         
-        try:
+        # try:
             # Create Chroma client
-            self.chroma_client = chromadb.Client()
+        import os
+        dir = os.getcwd()
+        chroma_path = dir + "/.chroma_db"
+        print(f"   📂 Using ChromaDB path: {chroma_path}")
+        self.chroma_client = chromadb.PersistentClient(chroma_path)
+        
+        # Delete collection if it exists (like in the notebook)
+        # try:
+        #     self.chroma_client.delete_collection(self.collection_name)
+        #     print("   🔄 Cleared existing collection")
+        # except:
+        #     pass
+        
+        # Create collection
+        self.collection = self.chroma_client.get_collection(
+            name=self.collection_name,
+            # embedding_function=self.embed_model_fn
+        )
+        
+        # Load country data only if collection is empty
+        if self.collection.count() <= 0:
+            print("📖 Loading and processing country data...")
+            self._load_country_data()
+        
+        count = self.collection.count()
+        print(f"✅ ChromaDB ready")
             
-            # Delete collection if it exists (like in the notebook)
-            try:
-                self.chroma_client.delete_collection(self.collection_name)
-                print("   🔄 Cleared existing collection")
-            except:
-                pass
-            
-            # Create collection
-            self.collection = self.chroma_client.create_collection(
-                name=self.collection_name,
-                embedding_function=self.embed_model_fn
-            )
-            
-            # Load country data only if collection is empty
-            if self.collection.count() <= 0:
-                print("📖 Loading and processing country data...")
-                self._load_country_data()
-            
-            count = self.collection.count()
-            print(f"✅ ChromaDB ready with {count} countries")
-            
-        except Exception as e:
-            print(f"❌ Failed to setup ChromaDB: {e}")
-            raise
+        # except Exception as e:
+        #     print(f"❌ Failed to setup ChromaDB: {e}")
+        #     raise
     
     def _load_country_data(self):
         """Load country data from CSV and add to ChromaDB"""
