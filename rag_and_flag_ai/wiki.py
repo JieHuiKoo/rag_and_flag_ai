@@ -47,7 +47,7 @@ def get_country_content(query):
 
         return page.content
     except wikipedia.exceptions.PageError:
-        print(f"Page not found for {country}")
+        print(f"Page not found for {query}")
         return None
     except Exception as e:
         print(f"An error occurred: {e}")
