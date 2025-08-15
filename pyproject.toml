@@ -14,6 +14,7 @@ dependencies = [
     "nbformat>=5.10.4",
     "pandas>=2.3.1",
     "sentence-transformers>=5.1.0",
+    "sentencepiece>=0.1.95",
     "wikipedia>=1.4.0",
     "transformers>=4.46.0",
     "torch>=2.0.0",

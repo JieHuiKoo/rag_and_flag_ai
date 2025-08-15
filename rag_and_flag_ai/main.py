@@ -9,7 +9,7 @@ import pandas as pd
 import chromadb
 from uuid import uuid4
 from chromadb.utils import embedding_functions
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, GenerationConfig
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 import sys
 import time
 from pathlib import Path
@@ -22,10 +22,7 @@ def show_example_queries():
         "Countries with mountains",
         "Island nations in Asia", 
         "Countries with oil resources",
-        "Desert countries",
         "European countries with coastlines",
-        "Countries known for tourism",
-        "Landlocked countries in Africa"
     ]
     
     print("\n💡 Example queries you can try:")
@@ -80,8 +77,8 @@ class CountryRAGSystem:
     
     def _setup_llm(self):
         try:
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(self.llm_model_name)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.llm_model_name)
+            self.tokenizer = T5Tokenizer.from_pretrained(self.llm_model_name)
+            self.model = T5ForConditionalGeneration.from_pretrained(self.llm_model_name)
             print("✅ Model loaded successfully")
         except Exception as e:
             print(f"❌ Failed to load model: {e}")
@@ -157,7 +154,7 @@ class CountryRAGSystem:
             print(f"❌ Failed to load country data: {e}")
             raise
     
-    def generate_answer(self, question, top_k=5):
+    def generate_answer(self, question, top_k=3):
         """
         Generate answer using RAG pipeline - following day03 notebook pattern
         1. Query ChromaDB for relevant countries
@@ -186,50 +183,33 @@ class CountryRAGSystem:
                 country_full_info[country_name] = content
                 
                 # Use more content for context (600 chars for better understanding)
-                truncated_content = content[:600] + "..." if len(content) > 600 else content
+                truncated_content = content[:500] + "..." if len(content) > 500 else content
                 context += f"Country: {country_name}\n{truncated_content}\n\n"
-            
+
             # Create enhanced prompt template for comprehensive responses
-            prompt = f"""Answer the question using the provided country information.
+            prompt = f"""Generate a summary that is relevant to the question for the country using the information provided.
 
-            Context:
-            {context}
+                Question: {question}
+            
+                Answer: {retrieved_countries[0]}
 
-            Question: {question}
+                Country's information:
+                {context}
 
-            Answer format:
-            ANSWER: [Your answer]
-            TOP COUNTRIES: [List 3 countries]
-            COUNTRY SUMMARIES:
-            {retrieved_countries[0] if retrieved_countries else 'Singapore'}: [Description]
-            {retrieved_countries[1] if len(retrieved_countries) > 1 else 'Indonesia'}: [Description] 
-            {retrieved_countries[2] if len(retrieved_countries) > 2 else 'Malaysia'}: [Description]"""
+                Brief Summary about the country related to the question:"""
             
             # Generate answer using Flan-T5
-            inputs = self.tokenizer(
-                prompt,
-                return_tensors="pt",
-                max_length=1024,  # Increased for much longer prompts
-                truncation=True,
-                padding=True  # Add padding to fix attention mask warning
-            )
+            input_ids = self.tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True).input_ids
             
-            # Use generation config for comprehensive responses
-            config = GenerationConfig(
+            outputs = self.model.generate(
+                input_ids,
+                max_length=150,
+                num_beams=4,
+                early_stopping=True,
                 do_sample=True,
-                temperature=0.3,  # Lower temperature for more consistent formatting
-                top_k=20,  # Reduced for more focused responses
-                max_new_tokens=350,  # Slightly reduced for better quality
-                pad_token_id=self.tokenizer.eos_token_id,
-                repetition_penalty=1.1  # Prevent repetition
+                temperature=0.7
             )
-            
-            enc_answer = self.model.generate(
-                inputs.input_ids, 
-                attention_mask=inputs.attention_mask,
-                generation_config=config
-            )
-            answer = self.tokenizer.decode(enc_answer[0], skip_special_tokens=True)
+            answer = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
             # Return both the enhanced answer and retrieved countries with full info
             return answer, retrieved_countries, country_full_info
@@ -242,59 +222,20 @@ class CountryRAGSystem:
         """Generate answer with enhanced streaming output for CLI interaction"""
         print(f"\n🔍 Searching for countries related to: '{question}'")
         
-        # Show thinking process
-        thinking_steps = ["⏳ Retrieving relevant information", "🧠 Processing context", "🤖 Generating response"]
-        for step in thinking_steps:
-            print(f"   {step}...")
-            time.sleep(0.5)
-        
         # Get comprehensive answer and retrieved countries
         answer, countries, full_info = self.generate_answer(question, top_k)
         
         if countries:
-            print(f"\n📋 Retrieved countries: {', '.join(countries)}")
+            print(f"\n📋 Retrieved {len(countries)} countries for context: {', '.join(countries)}")
+            print(f"🎯 Focusing on most relevant: {countries[0] if countries else 'None'}")
         
-        print(f"\n🤖 Comprehensive AI Response:")
+        print(f"\n🤖 LLM Response:")
         print("=" * 60)
         
-        # Parse and display the structured response
-        if "ANSWER:" in answer and "TOP COUNTRIES:" in answer and "COUNTRY SUMMARIES:" in answer:
-            # Split the response into sections
-            sections = answer.split("TOP COUNTRIES:")
-            answer_part = sections[0].replace("ANSWER:", "").strip()
-            
-            remaining = sections[1] if len(sections) > 1 else ""
-            if "COUNTRY SUMMARIES:" in remaining:
-                countries_part = remaining.split("COUNTRY SUMMARIES:")[0].strip()
-                summaries_part = remaining.split("COUNTRY SUMMARIES:")[1].strip()
-            else:
-                countries_part = remaining.strip()
-                summaries_part = ""
-            
-            # Display formatted response
-            print("🎯 ANSWER:")
-            print("-" * 30)
-            for char in answer_part:
-                print(char, end='', flush=True)
-                time.sleep(0.015)
-            
-            print(f"\n\n🌍 TOP COUNTRIES:")
-            print("-" * 30)
-            for char in countries_part:
-                print(char, end='', flush=True)
-                time.sleep(0.01)
-            
-            if summaries_part:
-                print(f"\n\n📖 COUNTRY SUMMARIES:")
-                print("-" * 30)
-                for char in summaries_part:
-                    print(char, end='', flush=True)
-                    time.sleep(0.01)
-        else:
-            # Fallback to regular streaming if format not recognized
-            for char in answer:
-                print(char, end='', flush=True)
-                time.sleep(0.02)
+        # Simply stream the raw answer from the LLM
+        for char in answer:
+            print(char, end='', flush=True)
+            time.sleep(0.02)
         
         print("\n" + "=" * 60)
         return answer, countries
@@ -304,8 +245,6 @@ def main():
     """Enhanced main CLI interface with better error handling"""
     print("=" * 60)
     print("🏗️  COUNTRY RAG SYSTEM")
-    print("Based on concepts from day03-rag-v2-filled.ipynb")
-    print("=" * 60)
     
     try:
         # Initialize RAG system
