@@ -19,7 +19,7 @@ from pathlib import Path
 def show_example_queries():
     """Display example queries to help users"""
     examples = [
-        "Which countries are hot?",
+        "Country with the highest chinese population",
         "Countries with mountains",
         "Island nations in Asia", 
         "Countries with oil resources",
@@ -27,8 +27,8 @@ def show_example_queries():
     ]
     
     print("\n💡 Example queries you can try:")
-    for i, example in enumerate(examples, 1):
-        print(f"   {i}. {example}")
+    for i, example in enumerate(examples, 0):
+        print(f"   {i+1}. {example}")
 
 
 class CountryRAGSystem:
@@ -177,18 +177,22 @@ class CountryRAGSystem:
             retrieved_countries = []
             country_full_info = {}
             
-            for i, doc_id in enumerate(results['ids'][0]):
-                chunk = self.collection.get(doc_id)
-                content = chunk['documents'][0]
+            # Get the most relevant country only (first result)
+            doc_id = results['ids'][0][0]  # Get first (most relevant) result
+            chunk = self.collection.get(doc_id)
+            content = chunk['documents'][0]
+
+            for id, country_id in enumerate(results['ids'][0]):
+                chunk = self.collection.get(country_id)
                 country_name = chunk['metadatas'][0]['country']
                 retrieved_countries.append(country_name)
-                
-                # Store full content for comprehensive summaries
-                country_full_info[country_name] = content
-                
-                # Use more content for context (600 chars for better understanding)
-                truncated_content = content[:500] + "..." if len(content) > 500 else content
-                context += f"Country: {country_name}\n{truncated_content}\n\n"
+            
+            # Store full content for comprehensive summaries
+            country_full_info[country_name] = content
+            
+            # Use more content for context (500 chars for better understanding)
+            truncated_content = content[:500] + "..." if len(content) > 500 else content
+            context = f"Country: {country_name}\n{truncated_content}\n\n"
 
             # Create enhanced prompt template for comprehensive responses
             prompt = f"""Generate a summary that is relevant to the question for the country using the information provided.
@@ -211,7 +215,7 @@ class CountryRAGSystem:
                 num_beams=4,
                 early_stopping=True,
                 do_sample=True,
-                temperature=0.7
+                temperature=0.1
             )
             answer = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
@@ -262,7 +266,7 @@ def main():
         
         while True:
             print("\n" + "=" * 60)
-            question = input("🗺️  Ask about countries: ").strip()
+            question = input("🗺️  Ask about countries: ")
             
             if question.lower() in ['quit', 'exit', 'q']:
                 print("👋 Thank you for using the Country RAG System!")
