@@ -14,7 +14,7 @@ This system allows users to ask natural language questions about countries and r
 The system implements the RAG pattern learned in the course:
 
 1. **Vector Database**: ChromaDB with country content embeddings
-2. **Embedding Model**: BAAI/bge-small-en-v1.5 (same as in notebook)
+2. **Embedding Model**: intfloat/e5-base-v2
 3. **LLM**: Google Flan-T5-base for response generation
 4. **Data Source**: `country_content.csv` with 238 countries
 
@@ -24,30 +24,35 @@ Based on `day03-rag-v2-filled.ipynb`, this system demonstrates:
 
 ### 1. **Embeddings & Vector Search**
 ```python
-# Using the same embedding model from the notebook
 embed_model_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="BAAI/bge-small-en-v1.5"
+    model_name="intfloat/e5-base-v2"
 )
 
 # Query for semantic similarity (like in notebook)
 results = collection.query(
-    query_texts=[question],
+    query_texts=[ question ],
     n_results=top_k
 )
 ```
 
 ### 2. **ChromaDB Collection Management**
 ```python
-# Delete/create pattern from notebook
-try:
-    chroma_client.delete_collection(collection_name)
-except:
-    pass
+# Create a persistent Chroma client so embedding does not need to be rerun
+chroma_client = chromadb.PersistentClient(".chroma_db")
 
-collection = chroma_client.create_collection(
-    name=collection_name,
-    embedding_function=embed_model_fn
+# Create collection with specified embedding function
+# If the collection already exists, simply return it instead of replacing it
+wiki_collection = chroma_client.get_or_create_collection(
+    name="wikipedia", embedding_function=embed_model_fn
 )
+
+# Add documents to collection
+for i, chunk in enumerate(all_chunks):
+    wiki_collection.add(
+        ids=[f"{chunk['country']}_{i}"],  # unique ID for each chunk
+        documents=[chunk["content"]],  # the chunk text
+        metadatas=[{"country": chunk["country"]}],  # metadata
+    )
 ```
 
 ### 3. **Flan-T5 Integration**
@@ -127,12 +132,12 @@ uv run python demo.py
 ### 🗄️ **Persistent Vector Store**
 - ChromaDB stores embeddings for fast retrieval
 - Metadata includes country names for easy reference
-
+****
 ## 📁 Project Structure
 
 ```
 rag_and_flag_ai/
-├── main.py                    # Main RAG system (CLI interface)
+├── main.py                   # Main RAG system (CLI interface)
 ├── test_rag.py               # Quick demo with sample data
 ├── demo.py                   # Automated interactive demo
 ├── pyproject.toml            # Dependencies
