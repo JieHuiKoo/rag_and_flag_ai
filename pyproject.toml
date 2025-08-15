@@ -19,4 +19,5 @@ dependencies = [
     "transformers>=4.46.0",
     "torch>=2.0.0",
     "accelerate>=0.20.0",
+    "gradio>=5.42.0",
 ]
