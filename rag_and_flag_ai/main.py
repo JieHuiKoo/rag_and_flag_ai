@@ -227,7 +227,6 @@ class CountryRAGSystem:
         
         if countries:
             print(f"\n📋 Retrieved {len(countries)} countries for context: {', '.join(countries)}")
-            print(f"🎯 Focusing on most relevant: {countries[0] if countries else 'None'}")
         
         print(f"\n🤖 LLM Response:")
         print("=" * 60)
